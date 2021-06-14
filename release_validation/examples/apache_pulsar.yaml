@@ -1,0 +1,9 @@
+# Example about using a given version of Apache Pulsar and the ASF Pulsar Helm Chart
+# You can use ASF Docker images with Luna Straming Helm Chart without problems
+image:
+   name: apachepulsar/pulsar-all
+   version: 2.7.2
+helmchart:
+  reponame: apache
+  repourl: https://pulsar.apache.org/charts
+  chartname: pulsar

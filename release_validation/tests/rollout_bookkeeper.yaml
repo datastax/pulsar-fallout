@@ -1,0 +1,5 @@
+# Example about how to perform a 'kubectl rollout restart' for a Stateful component, like BookKeeper
+rollout:
+  enable: true
+  resource: pulsar-bookkeeper
+  resourcetype: sts

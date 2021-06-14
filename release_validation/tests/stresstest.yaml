@@ -1,0 +1,18 @@
+# How to run a test that last 1h, producing and consuming messages concurrently with pulsar-perf
+consumer:
+  enable: false #disable pulsar-client consumer
+cluster:
+  numNodes: 6
+  numBookies: 3
+  numBrokers: 1
+  numZookeepers: 1
+  numProxies: 1
+  antiaffinity: no
+pulsarperf:
+  numtopics: 10
+  producer_time: 3600
+  consumer_enable: true
+  consumer_time: 3600
+  jvm_memory: 4G
+  pod_memory: 4G
+num_messages: 0

@@ -1,0 +1,593 @@
+image:
+   name: apachepulsar/pulsar-all
+   version: 2.7.2
+clientimage:
+   name: apachepulsar/pulsar-all
+   version: 2.7.2
+helmchart:
+  reponame: datastax-pulsar
+  repourl: https://datastax.github.io/pulsar-helm-chart/
+  chartname: datastax-pulsar/pulsar
+cluster:
+  numNodes: 6
+  numBookies: 3
+  numBrokers: 1
+  numZookeepers: 1
+  numProxies: 1
+  antiaffinity: no
+replication:
+  bkEnsembleSize: 2
+  bkAckQuorum: 2
+  bkWriteQuorum: 2
+num_messages: 10000
+authentication:
+  enabled: false
+functions:
+  run_as_kubernetes_pods: true
+  produce_messages: false
+topic:
+  numpartitions: 4
+  partitioned: true
+  name: persistent://public/default/test
+producer:
+  rate: 10000
+  compression: NONE
+  enable: true
+consumer:
+  enable: true
+pulsarperf:
+  numtopics: 1
+  producer_time: 0
+  consumer_enable: false
+  consumer_time: 10
+  jvm_memory: 4G
+  pod_memory: 4G
+failure_injection:
+  enable: false
+  bookkeeper: false
+  zookeeper: false
+  broker: false
+rollout:
+  enable: false
+  resource: pulsar-broker
+  resourcetype: deployment
+pulsar_configuration:
+  - key: loadBalancerBrokerOverloadedThresholdPercentage
+    value: "\"95\""
+  - key: loadBalancerLoadSheddingStrategy
+    value: "\"org.apache.pulsar.broker.loadbalance.impl.OverloadShedder\""
+  - key: loadBalancerBrokerThresholdShedderPercentage
+    value: "\"10\""
+namespace: "mypulsar"
+gke_project: SET-A-PROJECT-NAME
+---
+ensemble:
+  local_files:
+    - path: chaos-mesh-dashboard-values.yaml
+      data: |
+            dashboard:
+              create: true
+              securityMode: false
+    - path: bookkeeper-failures.yaml
+      yaml:
+        apiVersion: chaos-mesh.org/v1alpha1
+        kind: PodChaos
+        metadata:
+          name: bookie-failure-example
+        spec:
+          action: pod-kill
+          mode: one
+          duration: "30s"
+          selector:
+            labelSelectors:
+              'component': 'bookkeeper'
+          scheduler:
+              cron: '@every 2m'
+    - path: zk-failures.yaml
+      yaml:
+        apiVersion: chaos-mesh.org/v1alpha1
+        kind: PodChaos
+        metadata:
+          name: zk-failure-example
+        spec:
+          action: pod-kill
+          mode: one
+          duration: "30s"
+          selector:
+            labelSelectors:
+              'component': 'zookeeper'
+          scheduler:
+              cron: '@every 2m'
+    - path: broker-failures.yaml
+      yaml:
+        apiVersion: chaos-mesh.org/v1alpha1
+        kind: PodChaos
+        metadata:
+          name: broker-failure-example
+        spec:
+          action: pod-kill
+          mode: one
+          duration: "30s"
+          selector:
+            labelSelectors:
+              'component': 'broker'
+          scheduler:
+              cron: '@every 2m'
+    - path: producer.yaml
+      yaml:
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: runproducer
+        spec:
+          template:
+            spec:
+              containers:
+                - name: pulsarproducerrunner
+                  image: '{{clientimage.name}}:{{clientimage.version}}'
+                  command:
+                    - /bin/sh
+                    - -c
+                    - >-
+                      env &&
+                      /pulsar/bin/apply-config-from-env.py /pulsar/conf/client.conf &&
+                      PULSAR_EXTRA_OPTS="-Xmx{{pulsarperf.jvm_memory}}"
+                      bin/pulsar-perf produce
+                      --message-key-generation-mode autoIncrement
+                      -m {{num_messages}}
+                      -z {{producer.compression}}
+                      -time {{pulsarperf.producer_time}}
+                      --exit-on-failure
+                      -i 20
+                      -t {{pulsarperf.numtopics}}
+                      -r {{producer.rate}}
+                      -u http://pulsar-proxy:8080
+                      {{topic.name}}
+                  resources:
+                    requests:
+                      memory: {{pulsarperf.pod_memory}}
+                  env:
+                    - name: webServiceUrl
+                      value: http://pulsar-proxy:8080/
+                    - name: brokerServiceUrl
+                      value: pulsar://pulsar-proxy:6650/
+{{#authentication.enabled}}
+              volumes:
+                - name: token-private-key
+                  secret:
+                    secretName: token-private-key
+                - name: token-public-key
+                  secret:
+                    secretName: token-public-key
+                - name: token-admin
+                  secret:
+                    secretName: token-admin
+                - name: token-superuser
+                  secret:
+                    secretName: token-superuser
+{{/authentication.enabled}}
+              restartPolicy: Never
+    - path: functions-producer.yaml
+      yaml:
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: function-producer-starter
+        spec:
+          template:
+            spec:
+              containers:
+                - name: function-producer-starter
+                  image: '{{image.name}}:{{image.version}}'
+                  command:
+                    - /bin/sh
+                    - -c
+                    - >-
+                      env &&
+                      /pulsar/bin/apply-config-from-env.py /pulsar/conf/client.conf &&
+                      bin/pulsar-admin sources create
+                      -t data-generator --name data-generator-source
+                      --source-config '{"sleepBetweenMessages":"1000"}'
+                      --destination-topic-name {{topic.name}}
+                  env:
+                    - name: webServiceUrl
+                      value: http://pulsar-proxy:8080/
+                    - name: brokerServiceUrl
+                      value: pulsar://pulsar-proxy:6650/
+{{#authentication.enabled}}
+              volumes:
+                - name: token-private-key
+                  secret:
+                    secretName: token-private-key
+                - name: token-public-key
+                  secret:
+                    secretName: token-public-key
+                - name: token-admin
+                  secret:
+                    secretName: token-admin
+                - name: token-superuser
+                  secret:
+                    secretName: token-superuser
+{{/authentication.enabled}}
+              restartPolicy: Never
+    - path: createtopic.yaml
+      yaml:
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: createtopic
+        spec:
+          template:
+            spec:
+              containers:
+                - name: createtopicrunner
+                  image: '{{clientimage.name}}:{{clientimage.version}}'
+                  command:
+                    - /bin/sh
+                    - -c
+                    - >-
+                      env &&
+                      /pulsar/bin/apply-config-from-env.py /pulsar/conf/client.conf &&
+                      bin/pulsar-admin topics create-partitioned-topic
+                      -p {{topic.numpartitions}}
+                      {{topic.name}}
+                  env:
+                    - name: webServiceUrl
+                      value: http://pulsar-proxy:8080/
+                    - name: brokerServiceUrl
+                      value: pulsar://pulsar-proxy:6650/
+              restartPolicy: Never
+{{#authentication.enabled}}
+              volumes:
+                - name: token-private-key
+                  secret:
+                    secretName: token-private-key
+                - name: token-public-key
+                  secret:
+                    secretName: token-public-key
+                - name: token-admin
+                  secret:
+                    secretName: token-admin
+                - name: token-superuser
+                  secret:
+                    secretName: token-superuser
+{{/authentication.enabled}}
+    - path: pulsarperfconsumer.yaml
+      yaml:
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: runperfconsumer
+        spec:
+          template:
+            spec:
+              containers:
+                - name: pulsarperfconsumerrunner
+                  image: '{{clientimage.name}}:{{clientimage.version}}'
+                  command:
+                    - /bin/sh
+                    - -c
+                    - >-
+                      env &&
+                      /pulsar/bin/apply-config-from-env.py /pulsar/conf/client.conf &&
+                      PULSAR_EXTRA_OPTS="-Xmx{{pulsarperf.jvm_memory}}"
+                      bin/pulsar-perf consume
+                      -time {{pulsarperf.consumer_time}}
+                      -st Failover -sp Earliest -s subcrname
+                      -t {{pulsarperf.numtopics}}
+                      {{topic.name}}
+                  env:
+                    - name: webServiceUrl
+                      value: http://pulsar-proxy:8080/
+                    - name: brokerServiceUrl
+                      value: pulsar://pulsar-proxy:6650/
+              restartPolicy: Never
+{{#authentication.enabled}}
+              volumes:
+                - name: token-private-key
+                  secret:
+                    secretName: token-private-key
+                - name: token-public-key
+                  secret:
+                    secretName: token-public-key
+                - name: token-admin
+                  secret:
+                    secretName: token-admin
+                - name: token-superuser
+                  secret:
+                    secretName: token-superuser
+{{/authentication.enabled}}
+    - path: consumer.yaml
+      yaml:
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: runconsumer
+        spec:
+          template:
+            spec:
+              containers:
+                - name: pulsarconsumerrunner
+                  image: '{{clientimage.name}}:{{clientimage.version}}'
+                  command:
+                    - /bin/sh
+                    - -c
+                    - >-
+                      env &&
+                      /pulsar/bin/apply-config-from-env.py /pulsar/conf/client.conf &&
+                      PULSAR_EXTRA_OPTS="-Xmx{{pulsarperf.jvm_memory}}"
+                      bin/pulsar-client consume
+                      -p Earliest -s subcrname
+                      -n {{num_messages}}
+                      {{topic.name}}
+                  env:
+                    - name: webServiceUrl
+                      value: http://pulsar-proxy:8080/
+                    - name: brokerServiceUrl
+                      value: pulsar://pulsar-proxy:6650/
+{{#authentication.enabled}}
+              volumes:
+                - name: token-private-key
+                  secret:
+                    secretName: token-private-key
+                - name: token-public-key
+                  secret:
+                    secretName: token-public-key
+                - name: token-admin
+                  secret:
+                    secretName: token-admin
+                - name: token-superuser
+                  secret:
+                    secretName: token-superuser
+{{/authentication.enabled}}
+              restartPolicy: Never
+    - path: pulsar-values.yaml
+      data: |
+            enableAntiAffinity: {{cluster.antiaffinity}}
+            enableTls: no
+            initialize: true  # ASF Helm Chart
+            affinity: # ASF Helm Chart
+              anti_affinity: no
+            restartOnConfigMapChange:
+              enabled: yes
+{{#authentication.enabled}}
+            enableTokenAuth: yes
+            autoRecovery:
+              enableProvisionContainer: yes
+{{/authentication.enabled}}
+            image:
+              zookeeper:
+                repository: {{image.name}}
+                tag: {{image.version}}
+              bookie:
+                repository: {{image.name}}
+                tag: {{image.version}}
+              bookkeeper:
+                repository: {{image.name}}
+                tag: {{image.version}}
+              autorecovery:
+                repository: {{image.name}}
+                tag: {{image.version}}
+              broker:
+                repository: {{image.name}}
+                tag: {{image.version}}
+              proxy:
+                repository: {{image.name}}
+                tag: {{image.version}}
+              functions:
+                repository: {{image.name}}
+                tag: {{image.version}}
+              function:
+                repository: {{image.name}}
+                tag: {{image.version}}
+            extra:
+              function: yes
+              burnell: yes
+              burnellLogCollector: yes
+              pulsarHeartbeat: yes
+              pulsarAdminConsole: yes
+{{#functions.run_as_kubernetes_pods}}
+              functionsAsPods: yes
+{{/functions.run_as_kubernetes_pods}}
+{{#authentication.enabled}}
+              autoRecovery: yes
+{{/authentication.enabled}}
+            volumes:
+              data: #ASF Helm Chart
+                storageClassName: existent-storage-class
+            zookeeper:
+              replicaCount: {{cluster.numZookeepers}}
+            bookkeeper:
+              replicaCount: {{cluster.numBookies}}
+            broker:
+              component: broker
+              replicaCount: {{cluster.numBrokers}}
+              ledger:
+                defaultEnsembleSize: {{replication.bkEnsembleSize}}
+                defaultAckQuorum:  {{replication.bkAckQuorum}}
+                defaultWriteQuorum: {{replication.bkWriteQuorum}}
+              configData:
+{{#pulsar_configuration}}
+                {{key}}: {{value}}
+{{/pulsar_configuration}}
+            function:
+              replicaCount: 1
+              functionReplicaCount: 1
+{{#functions.run_as_kubernetes_pods}}
+              runtime: "kubernetes"
+{{/functions.run_as_kubernetes_pods}}
+            proxy:
+              replicaCount: {{cluster.numProxies}}
+              autoPortAssign:
+                enablePlainTextWithTLS: yes
+              service:
+                type: ClusterIP
+                autoPortAssign:
+                  enabled: yes
+            grafanaDashboards:
+              enabled: no
+            pulsarAdminConsole:
+              replicaCount: 0
+              service:
+                type: ClusterIP
+            grafana: #ASF Helm Chart
+              service:
+                type: ClusterIP
+            pulsar_manager:
+              service: #ASF Helm Chart
+                type: ClusterIP
+            kube-prometheus-stack: # Luna Streaming Helm Chart
+              enabled: no
+              prometheusOperator:
+                enabled: no
+              grafana:
+                enabled: no
+                adminPassword: e9JYtk83*4#PM8
+                service:
+                  type: ClusterIP
+            pulsarSQL:
+              service:
+                type: ClusterIP
+  
+  server:
+    node.count: {{cluster.numNodes}}
+    provisioner:
+      name: gke
+      properties:
+        project: {{gke_project}}
+        region: us-west2
+        machine.type: e2-standard-8
+        create.extra_args: --enable-autoupgrade
+    configuration_manager:
+      - name: helm
+        properties:
+          namespace: {{namespace}}
+          helm.install.type: repo
+          helm.install.name: mypulsar
+          helm.install.values.file: <<file:pulsar-values.yaml>>
+          helm.install.debug: true
+          helm.install.timeout: 1200s
+          helm.repo.name: {{helmchart.reponame}}
+          helm.repo.url:  {{helmchart.repourl}}
+          helm.chart.name: {{helmchart.chartname}}
+      - name: kubernetes_logs
+        properties:
+          container_logs_namespace: {{namespace}}
+          capture_previous_container_logs: true
+          ignore_failures: true
+{{#failure_injection.enable}}
+      - name: helm
+        properties:
+          namespace: chaos-testing
+          helm.install.type: repo
+          helm.install.name: chaos-mesh
+          helm.install.values.file: <<file:chaos-mesh-dashboard-values.yaml>>
+          helm.repo.name: chaos-mesh
+          helm.repo.url: https://charts.chaos-mesh.org
+          helm.chart.name: chaos-mesh
+{{/failure_injection.enable}}
+  client: server
+
+workload:
+  phases:
+{{#failure_injection.enable}}
+    # chaos-manager-controller failed to init as resources are not applied yet.
+    - boilerplate-fix-chaos-mesh-installation:
+        - apply-chaos-resources:
+            module: kubectl
+            properties:
+              command: apply -f https://raw.githubusercontent.com/chaos-mesh/chaos-mesh/master/manifests/crd.yaml
+        - apply-chaos-provisioner:
+            module: kubectl
+            properties:
+              command: apply -f https://raw.githubusercontent.com/chaos-mesh/chaos-mesh/master/manifests/local-volume-provisioner.yaml
+        - apply-chaos-rbac:
+            module: kubectl
+            properties:
+              command: apply -f https://raw.githubusercontent.com/chaos-mesh/chaos-mesh/chart-0.4.1/manifests/tiller-rbac.yaml
+        # wait for failed chaos-control-manager to restart
+        - wait-for-chaos-setup:
+            module: sleep
+            properties:
+              duration: 3m
+{{/failure_injection.enable}}
+{{#topic.partitioned}}
+    - create-topic:
+        module: kubernetes_job
+        properties:
+          namespace: {{namespace}}
+          manifest: <<file:createtopic.yaml>>
+          capture_container_logs: true
+{{/topic.partitioned}}
+{{#functions.produce_messages}}
+    - start-functions-producer:
+        module: kubernetes_job
+        properties:
+          namespace: {{namespace}}
+          manifest: <<file:functions-producer.yaml>>
+          capture_container_logs: true
+{{/functions.produce_messages}}
+    - parallel-produce-and-failures:
+{{#producer.enable}}
+      - run-producer:
+          module: kubernetes_job
+          properties:
+            namespace: {{namespace}}
+            manifest: <<file:producer.yaml>>
+            capture_container_logs: true
+{{/producer.enable}}
+{{^producer.enable}}
+      - noop:
+          module: sleep
+          properties:
+            duration: 1s
+{{/producer.enable}}
+{{#pulsarperf.consumer_enable}}
+        run-pulsarperf-consumer: ## read messages while producing them
+          module: kubernetes_job
+          properties:
+            namespace: {{namespace}}
+            manifest: <<file:pulsarperfconsumer.yaml>>
+            capture_container_logs: true
+{{/pulsarperf.consumer_enable}}
+{{#failure_injection.bookkeeper}}
+        pod-failure-chaos-bk:
+          module: kubectl
+          properties:
+            command: apply --namespace {{namespace}} -f <<file:bookkeeper-failures.yaml>>
+{{/failure_injection.bookkeeper}}
+{{#failure_injection.zookeeper}}
+        pod-failure-chaos-zk:
+          module: kubectl
+          properties:
+            command: apply --namespace {{namespace}} -f <<file:zk-failures.yaml>>
+{{/failure_injection.zookeeper}}
+{{#failure_injection.broker}}
+        pod-failure-chaos-broker:
+          module: kubectl
+          properties:
+            command: apply --namespace {{namespace}} -f <<file:broker-failures.yaml>>
+{{/failure_injection.broker}}
+{{#rollout.enable}}
+        pod-rollout-restart:
+          module: kubectl
+          properties:
+            command: rollout restart {{rollout.resourcetype}} {{rollout.resource}} -n {{namespace}}
+{{/rollout.enable}}
+{{#consumer.enable}}
+    - run-consumer:
+          module: kubernetes_job
+          properties:
+            namespace: {{namespace}}
+            manifest: <<file:consumer.yaml>>
+            capture_container_logs: true
+{{/consumer.enable}}
+{{#failure_injection.enable}}
+    - wait-for-chaos-end:
+            module: sleep
+            properties:
+              duration: 3m
+{{/failure_injection.enable}}
+  checkers:
+    nofail:
+      checker: nofail

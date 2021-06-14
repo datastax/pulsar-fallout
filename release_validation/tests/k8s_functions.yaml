@@ -1,0 +1,33 @@
+# The the execution of Pulsar Functions as Kubernetes PODs
+# we need the pulsar-all image, that contains the data-generator source
+image:
+   name: datastax/pulsar-all
+   version: 2.6.2_1.0.0
+# use as less resources as possible,
+# we must ensure that there is space for the function pod
+cluster:
+  numNodes: 6
+  numBookies: 1
+  numBrokers: 1
+  numZookeepers: 1
+  numProxies: 1
+  antiaffinity: no
+replication:
+  bkEnsembleSize: 1
+  bkAckQuorum: 1
+  bkWriteQuorum: 1
+# deploy a function (Data Generator Pulsar IO Source)  
+# it will run as k8s pod
+functions:
+  run_as_kubernetes_pods: true
+  produce_messages: true
+# do not use the normal producer
+producer:
+  enable: false
+  rate: 0
+  compression: NONE
+# Read messages
+consumer:
+  enable: true
+num_messages: 100
+

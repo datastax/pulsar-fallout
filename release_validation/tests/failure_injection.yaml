@@ -1,0 +1,13 @@
+# Enable Chaos-Mesh failure injection
+# select the type of pod to fail
+# you can select all of the items in order to simulate multiple failures
+failure_injection:
+  enable: true
+  bookkeeper: true
+  zookeeper: false
+  broker: false
+replication:
+  bkEnsembleSize: 2
+  bkAckQuorum: 2
+  bkWriteQuorum: 2
+num_messages: 100000

@@ -1,0 +1,8 @@
+# Parameters to use Luna Streaming Distribution of Apache Pulsar
+image:
+   name: datastax/pulsar
+   version: 2.7.2_1.0.0
+helmchart:
+  reponame: datastax-pulsar
+  repourl: https://datastax.github.io/pulsar-helm-chart/
+  chartname: datastax-pulsar/pulsar

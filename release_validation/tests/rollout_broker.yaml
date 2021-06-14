@@ -1,0 +1,5 @@
+# Example about how to perform a 'kubectl rollout restart' for a stateless component, like the Broker deployment
+rollout:
+  enable: true
+  resource: pulsar-broker
+  resourcetype: deployment
