@@ -6,14 +6,11 @@ With this tool you can easily and reproducibly create start a Pulsar cluster and
 Fallout uses Kubernetes and the Pulsar Helm Chart to deploy the services and run the tests.
 The size of the cluster is limited only by the available resources.
 
-We support the GKE environment as well as simply local clusters (with `kind`).
-
 ## Running Fallout 
 
-If you want to run these tests locally install these prerequisites:
-- Download Fallout from https://github.com/riptano/Fallout/releases
-- jdk-11 or more recent (used to run fallout binaries, the docker image is using jdk15-alpine)
-- docker
+You can run Fallout by downloading it from GitHub (https://github.com/datastax/Fallout) and run it locally.
+
+The example here uses the official docker image, that is more easy to use as it bundles all of the required dependencies.
 
 You also need a Google Kuberneted Engine (GKE) account.
 
