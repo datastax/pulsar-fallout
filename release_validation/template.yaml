@@ -130,6 +130,9 @@ ensemble:
                     - -c
                     - >-
                       env &&
+{{#authentication.enabled}}
+                      cat /pulsar/token-superuser/superuser.jwt | tr -d '\n' > /pulsar/token-superuser-stripped.jwt &&
+{{/authentication.enabled}}
                       /pulsar/bin/apply-config-from-env.py /pulsar/conf/client.conf &&
                       PULSAR_EXTRA_OPTS="-Xmx{{pulsarperf.jvm_memory}}"
                       bin/pulsar-perf produce
@@ -146,11 +149,33 @@ ensemble:
                   resources:
                     requests:
                       memory: {{pulsarperf.pod_memory}}
+{{#authentication.enabled}}
+                  volumeMounts:
+                    - mountPath: /pulsar/token-private-key
+                      name: token-private-key
+                      readOnly: true
+                    - mountPath: /pulsar/token-public-key
+                      name: token-public-key
+                      readOnly: true
+                    - mountPath: /pulsar/token-admin
+                      name: token-admin
+                      readOnly: true
+                    - mountPath: /pulsar/token-superuser
+                      name: token-superuser
+                      readOnly: true
+{{/authentication.enabled}}
                   env:
                     - name: webServiceUrl
                       value: http://pulsar-proxy:8080/
                     - name: brokerServiceUrl
                       value: pulsar://pulsar-proxy:6650/
+{{#authentication.enabled}}
+                    - name: authPlugin
+                      value: org.apache.pulsar.client.impl.auth.AuthenticationToken
+                    - name: authParams
+                      value: file:///pulsar/token-superuser-stripped.jwt
+{{/authentication.enabled}}
+              restartPolicy: Never
 {{#authentication.enabled}}
               volumes:
                 - name: token-private-key
@@ -166,7 +191,6 @@ ensemble:
                   secret:
                     secretName: token-superuser
 {{/authentication.enabled}}
-              restartPolicy: Never
     - path: functions-producer.yaml
       yaml:
         apiVersion: batch/v1
@@ -184,16 +208,41 @@ ensemble:
                     - -c
                     - >-
                       env &&
+{{#authentication.enabled}}
+                      cat /pulsar/token-superuser/superuser.jwt | tr -d '\n' > /pulsar/token-superuser-stripped.jwt &&
+{{/authentication.enabled}}
                       /pulsar/bin/apply-config-from-env.py /pulsar/conf/client.conf &&
                       bin/pulsar-admin sources create
                       -t data-generator --name data-generator-source
                       --source-config '{"sleepBetweenMessages":"1000"}'
                       --destination-topic-name {{topic.name}}
+{{#authentication.enabled}}
+                  volumeMounts:
+                    - mountPath: /pulsar/token-private-key
+                      name: token-private-key
+                      readOnly: true
+                    - mountPath: /pulsar/token-public-key
+                      name: token-public-key
+                      readOnly: true
+                    - mountPath: /pulsar/token-admin
+                      name: token-admin
+                      readOnly: true
+                    - mountPath: /pulsar/token-superuser
+                      name: token-superuser
+                      readOnly: true
+{{/authentication.enabled}}
                   env:
                     - name: webServiceUrl
                       value: http://pulsar-proxy:8080/
                     - name: brokerServiceUrl
                       value: pulsar://pulsar-proxy:6650/
+{{#authentication.enabled}}
+                    - name: authPlugin
+                      value: org.apache.pulsar.client.impl.auth.AuthenticationToken
+                    - name: authParams
+                      value: file:///pulsar/token-superuser-stripped.jwt
+{{/authentication.enabled}}
+              restartPolicy: Never
 {{#authentication.enabled}}
               volumes:
                 - name: token-private-key
@@ -209,7 +258,6 @@ ensemble:
                   secret:
                     secretName: token-superuser
 {{/authentication.enabled}}
-              restartPolicy: Never
     - path: createtopic.yaml
       yaml:
         apiVersion: batch/v1
@@ -227,15 +275,39 @@ ensemble:
                     - -c
                     - >-
                       env &&
+{{#authentication.enabled}}
+                      cat /pulsar/token-superuser/superuser.jwt | tr -d '\n' > /pulsar/token-superuser-stripped.jwt &&
+{{/authentication.enabled}}
                       /pulsar/bin/apply-config-from-env.py /pulsar/conf/client.conf &&
                       bin/pulsar-admin topics create-partitioned-topic
                       -p {{topic.numpartitions}}
                       {{topic.name}}
+{{#authentication.enabled}}
+                  volumeMounts:
+                    - mountPath: /pulsar/token-private-key
+                      name: token-private-key
+                      readOnly: true
+                    - mountPath: /pulsar/token-public-key
+                      name: token-public-key
+                      readOnly: true
+                    - mountPath: /pulsar/token-admin
+                      name: token-admin
+                      readOnly: true
+                    - mountPath: /pulsar/token-superuser
+                      name: token-superuser
+                      readOnly: true
+{{/authentication.enabled}}
                   env:
                     - name: webServiceUrl
                       value: http://pulsar-proxy:8080/
                     - name: brokerServiceUrl
                       value: pulsar://pulsar-proxy:6650/
+{{#authentication.enabled}}
+                    - name: authPlugin
+                      value: org.apache.pulsar.client.impl.auth.AuthenticationToken
+                    - name: authParams
+                      value: file:///pulsar/token-superuser-stripped.jwt
+{{/authentication.enabled}}
               restartPolicy: Never
 {{#authentication.enabled}}
               volumes:
@@ -269,6 +341,9 @@ ensemble:
                     - -c
                     - >-
                       env &&
+{{#authentication.enabled}}
+                      cat /pulsar/token-superuser/superuser.jwt | tr -d '\n' > /pulsar/token-superuser-stripped.jwt &&
+{{/authentication.enabled}}
                       /pulsar/bin/apply-config-from-env.py /pulsar/conf/client.conf &&
                       PULSAR_EXTRA_OPTS="-Xmx{{pulsarperf.jvm_memory}}"
                       bin/pulsar-perf consume
@@ -276,11 +351,32 @@ ensemble:
                       -st Failover -sp Earliest -s subcrname
                       -t {{pulsarperf.numtopics}}
                       {{topic.name}}
+{{#authentication.enabled}}
+                  volumeMounts:
+                    - mountPath: /pulsar/token-private-key
+                      name: token-private-key
+                      readOnly: true
+                    - mountPath: /pulsar/token-public-key
+                      name: token-public-key
+                      readOnly: true
+                    - mountPath: /pulsar/token-admin
+                      name: token-admin
+                      readOnly: true
+                    - mountPath: /pulsar/token-superuser
+                      name: token-superuser
+                      readOnly: true
+{{/authentication.enabled}}
                   env:
                     - name: webServiceUrl
                       value: http://pulsar-proxy:8080/
                     - name: brokerServiceUrl
                       value: pulsar://pulsar-proxy:6650/
+{{#authentication.enabled}}
+                    - name: authPlugin
+                      value: org.apache.pulsar.client.impl.auth.AuthenticationToken
+                    - name: authParams
+                      value: file:///pulsar/token-superuser-stripped.jwt
+{{/authentication.enabled}}
               restartPolicy: Never
 {{#authentication.enabled}}
               volumes:
@@ -314,17 +410,42 @@ ensemble:
                     - -c
                     - >-
                       env &&
+{{#authentication.enabled}}
+                      cat /pulsar/token-superuser/superuser.jwt | tr -d '\n' > /pulsar/token-superuser-stripped.jwt &&
+{{/authentication.enabled}}
                       /pulsar/bin/apply-config-from-env.py /pulsar/conf/client.conf &&
                       PULSAR_EXTRA_OPTS="-Xmx{{pulsarperf.jvm_memory}}"
                       bin/pulsar-client consume
                       -p Earliest -s subcrname
                       -n {{num_messages}}
                       {{topic.name}}
+{{#authentication.enabled}}
+                  volumeMounts:
+                    - mountPath: /pulsar/token-private-key
+                      name: token-private-key
+                      readOnly: true
+                    - mountPath: /pulsar/token-public-key
+                      name: token-public-key
+                      readOnly: true
+                    - mountPath: /pulsar/token-admin
+                      name: token-admin
+                      readOnly: true
+                    - mountPath: /pulsar/token-superuser
+                      name: token-superuser
+                      readOnly: true
+{{/authentication.enabled}}
                   env:
                     - name: webServiceUrl
                       value: http://pulsar-proxy:8080/
                     - name: brokerServiceUrl
                       value: pulsar://pulsar-proxy:6650/
+{{#authentication.enabled}}
+                    - name: authPlugin
+                      value: org.apache.pulsar.client.impl.auth.AuthenticationToken
+                    - name: authParams
+                      value: file:///pulsar/token-superuser-stripped.jwt
+{{/authentication.enabled}}
+              restartPolicy: Never
 {{#authentication.enabled}}
               volumes:
                 - name: token-private-key
@@ -340,7 +461,6 @@ ensemble:
                   secret:
                     secretName: token-superuser
 {{/authentication.enabled}}
-              restartPolicy: Never
     - path: pulsar-values.yaml
       data: |
             enableAntiAffinity: {{cluster.antiaffinity}}
@@ -382,16 +502,23 @@ ensemble:
                 tag: {{image.version}}
             extra:
               function: yes
+{{#authentication.enabled}}
               burnell: yes
               burnellLogCollector: yes
               pulsarHeartbeat: yes
               pulsarAdminConsole: yes
+              autoRecovery: yes
+{{/authentication.enabled}}
+{{^authentication.enabled}}
+              burnell: no
+              burnellLogCollector: no
+              pulsarHeartbeat: no
+              pulsarAdminConsole: no
+              autoRecovery: no
+{{/authentication.enabled}}
 {{#functions.run_as_kubernetes_pods}}
               functionsAsPods: yes
 {{/functions.run_as_kubernetes_pods}}
-{{#authentication.enabled}}
-              autoRecovery: yes
-{{/authentication.enabled}}
             volumes:
               data: #ASF Helm Chart
                 storageClassName: existent-storage-class
