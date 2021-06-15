@@ -1,0 +1,3 @@
+# Example about how to test with Token Auth
+authentication:
+  enabled: true
