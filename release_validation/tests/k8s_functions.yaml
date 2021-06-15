@@ -12,6 +12,9 @@ cluster:
   numZookeepers: 1
   numProxies: 1
   antiaffinity: no
+# enable authentication, this an useful test for rootless containers
+authentication:
+  enabled: true
 replication:
   bkEnsembleSize: 1
   bkAckQuorum: 1
