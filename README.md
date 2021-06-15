@@ -21,7 +21,7 @@ git clone https://gtihub.com/datastax/pulsar-fallout
 cd pulsar-fallout
 
 docker run -it -v $(pwd):/home/fallout/fallout-exec-tests \
-  datastax/fallout:latest \
+  datastax/fallout:1.241.0 \
   fallout exec --use-unique-output-dir \
                --params fallout-exec-tests/release_validation/examples/luna_streaming.yaml \
                         fallout-exec-tests/release_validation/template.yaml \
