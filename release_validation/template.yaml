@@ -612,6 +612,7 @@ ensemble:
           helm.repo.name: chaos-mesh
           helm.repo.url: https://charts.chaos-mesh.org
           helm.chart.name: chaos-mesh
+          helm.chart.version: 0.4.1
 {{/failure_injection.enable}}
   client: server
 
@@ -623,11 +624,11 @@ workload:
         - apply-chaos-resources:
             module: kubectl
             properties:
-              command: apply -f https://raw.githubusercontent.com/chaos-mesh/chaos-mesh/master/manifests/crd.yaml
+              command: apply -f https://raw.githubusercontent.com/chaos-mesh/chaos-mesh/chart-0.4.1/manifests/crd.yaml
         - apply-chaos-provisioner:
             module: kubectl
             properties:
-              command: apply -f https://raw.githubusercontent.com/chaos-mesh/chaos-mesh/master/manifests/local-volume-provisioner.yaml
+              command: apply -f https://raw.githubusercontent.com/chaos-mesh/chaos-mesh/chart-0.4.1/manifests/local-volume-provisioner.yaml
         - apply-chaos-rbac:
             module: kubectl
             properties:
